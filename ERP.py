@@ -7,6 +7,8 @@ from mne.datasets import sample
 from config import parser
 from reweighting import weight_learner
 
+import deap_loader
+
 from torch.autograd import Variable
 
 import numpy as np
@@ -25,21 +27,7 @@ import pickle
 args = parser.parse_args()
 
 
-def save_all_labels_into_file():
-    x = pickle.load(open('D:\eng\data_preprocessed_python\s01.dat', 'rb'), encoding='latin1')  # dict
-    labels = x['labels']
-    valence_and_arousal = (labels[:, [0, 1]] - 5) / 4
-    labelswithanglesandemotions = append_angle_and_emotion(valence_and_arousal)
-    for i in range(2, 33):
-        x = pickle.load(
-            open('D:\eng\data_preprocessed_python\s' + str(i).zfill(2) + '.dat', 'rb'), encoding='latin1')  # dict
-        labels = x['labels']  # numpy.ndarray
-        # valence,arousal,dominance,liking
-        valence_and_arousal = (labels[:, [0, 1]] - 5) / 4
-        labelswithanglesandemotions = np.concatenate(
-            (labelswithanglesandemotions, append_angle_and_emotion(valence_and_arousal)), 0)
-    with open('D:\eng\data_preprocessed_python\labels.txt', 'wb') as outfile:
-        np.savetxt(outfile, labelswithanglesandemotions, "%.2f")
+
 
 
 # Set parameters and read data
