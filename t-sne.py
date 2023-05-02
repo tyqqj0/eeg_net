@@ -14,9 +14,11 @@ feature_data, labels = deap_loader.load_all_s_files("D:/Data/deap")
 # labels : 32 * 40 * 4
 
 # 转换为 (32*40) * 40 * 8064，并取8064的前40个
-feature_data = feature_data.reshape(-1, 40 * 8064)[:, :, :40]
+n = 40
+feature_data = feature_data.reshape(-1, 40, 8064)[:, :, 1000:1000 + n]
+# print(feature_data.shape)
 # 转换为 1280 * 160
-feature_data = feature_data.reshape(-1, 160)
+feature_data = feature_data.reshape(-1, 40 * n)
 # 转换为 (32*40) * 4
 labels = labels.reshape(-1, 4)
 
@@ -28,7 +30,7 @@ print("Running t-SNE...")
 tsne = TSNE(n_components=2, random_state=42)
 low_dim_features = tsne.fit_transform(feature_data)
 print("Done.")
-print(low_dim_features.shape)
+# print(low_dim_features.shape) # (1280, 2)
 
 # 为每个人分配一个颜色
 num_people = 32
@@ -36,10 +38,21 @@ colors = plt.cm.rainbow(np.linspace(0, 1, num_people))
 
 # 创建颜色数组，将每个人的数据点分配给不同颜色
 color_array = np.repeat(colors, 40, axis=0)
+# print(color_array.shape)
 
-# 可视化降维后的特征
-plt.scatter(low_dim_features[:, 0], low_dim_features[:, 1], c=color_array, s=1)  # s=1表示点的大小
-plt.xlabel('t-SNE Component 1')
-plt.ylabel('t-SNE Component 2')
+scatter = plt.scatter(low_dim_features[:, 0], low_dim_features[:, 1], c=color_array, s=6)
+from matplotlib.lines import Line2D
+
+step = 5  # 每隔5个人显示一个标签
+legend_elements = [Line2D([0], [0], marker='o', color='w', label='Person {}'.format(i + 1),
+                          markerfacecolor=color, markersize=6)
+                   for i, color in enumerate(colors) if (i + 1) % step == 0]
+
+# 创建图例
+legend1 = plt.legend(handles=legend_elements, loc="best", title="Person ID")
+plt.gca().add_artist(legend1)
+
+# plt.xlabel('t-SNE Component 1')
+# plt.ylabel('t-SNE Component 2')
 plt.title('t-SNE Visualization of DEAP Features')
 plt.show()
