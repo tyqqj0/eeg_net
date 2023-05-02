@@ -18,12 +18,33 @@ import utils as utils
 use_cuda = torch.cuda.is_available()
 device = torch.device('cuda:0' if use_cuda else 'cpu')
 
+import numpy as np
+import pickle
+
 # 读取args
 args = parser.parse_args()
 
+
+def save_all_labels_into_file():
+    x = pickle.load(open('D:\eng\data_preprocessed_python\s01.dat', 'rb'), encoding='latin1')  # dict
+    labels = x['labels']
+    valence_and_arousal = (labels[:, [0, 1]] - 5) / 4
+    labelswithanglesandemotions = append_angle_and_emotion(valence_and_arousal)
+    for i in range(2, 33):
+        x = pickle.load(
+            open('D:\eng\data_preprocessed_python\s' + str(i).zfill(2) + '.dat', 'rb'), encoding='latin1')  # dict
+        labels = x['labels']  # numpy.ndarray
+        # valence,arousal,dominance,liking
+        valence_and_arousal = (labels[:, [0, 1]] - 5) / 4
+        labelswithanglesandemotions = np.concatenate(
+            (labelswithanglesandemotions, append_angle_and_emotion(valence_and_arousal)), 0)
+    with open('D:\eng\data_preprocessed_python\labels.txt', 'wb') as outfile:
+        np.savetxt(outfile, labelswithanglesandemotions, "%.2f")
+
+
 # Set parameters and read data
-raw_fname = 'C:/Users/16535/mne_data/MNE-sample-data/MEG/sample/sample_audvis_filt-0-40_raw.fif'
-event_fname = 'C:/Users/16535/mne_data/MNE-sample-data/MEG/sample/sample_audvis_filt-0-40_raw-eve.fif'
+raw_fname = 'D:\Data\deap\s01.dat'
+# event_fname = 'C:/Users/16535/mne_data/MNE-sample-data/MEG/sample/sample_audvis_filt-0-40_raw-eve.fif'
 tmin, tmax = -0., 1
 event_id = dict(aud_l=1, aud_r=2, vis_l=3, vis_r=4)
 
@@ -31,9 +52,12 @@ event_id = dict(aud_l=1, aud_r=2, vis_l=3, vis_r=4)
 current_working_dir = os.getcwd()
 filename = current_working_dir + '/best_model.pth'
 # Setup for reading the raw data
-raw = io.Raw(raw_fname, preload=True, verbose=False)
+raw = load_deap_data(raw_fname)
 raw.filter(2, None, method='iir')  # replace baselining with high-pass
-events = mne.read_events(event_fname)
+# events = mne.read_events(event_fname)
+
+# 显示第一个通道的数据
+raw.plot(duration=60, n_channels=1)
 
 raw.info['bads'] = ['MEG 2443']  # set bad channels
 picks = mne.pick_types(raw.info, meg=False, eeg=True, stim=False, eog=False,
@@ -96,6 +120,7 @@ for iter in range(1, 300):
     # create a minibatch
     net.train()
     for batch_index in range(0, X_train.size()[0], batch_size):
+        print(batch_index)
         optimizer.zero_grad()
 
         indices = permutation[batch_index:batch_index + batch_size]
@@ -106,6 +131,7 @@ for iter in range(1, 300):
         inputs = minibatch_data
         # feed the input to the net
         inputs.requires_grad_()
+        # print(inputs.shape)
         scores, cfeatures = net(inputs)
 
         # update the weights
@@ -141,7 +167,7 @@ total_error = running_error / num_batches
 # validation
 net.eval()
 inputs = X_validate
-val_probs = net(inputs)
+val_probs, cfeatures = net(inputs)
 val_preds = val_probs.argmax(axis=-1).cuda()
 val_acc = np.mean((val_preds == Y_validate.argmax(axis=-1)).double().cpu().numpy())
 
