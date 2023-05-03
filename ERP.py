@@ -4,10 +4,9 @@ import mne
 from mne import io
 from mne.datasets import sample
 
+import t_sne
 from config import parser
 from reweighting import weight_learner
-
-import deap_loader
 
 from torch.autograd import Variable
 
@@ -17,22 +16,19 @@ import torch
 import model as md
 import utils as utils
 
+import t_sne as tsne
+
 use_cuda = torch.cuda.is_available()
 device = torch.device('cuda:0' if use_cuda else 'cpu')
-
-import numpy as np
-import pickle
 
 # 读取args
 args = parser.parse_args()
 
-
-
-
+# mne.datasets.sample.data_path(path="D:\Data\mne", verbose=True)  # verbose=True显示下载进度
 
 # Set parameters and read data
-raw_fname = 'D:\Data\deap\s01.dat'
-# event_fname = 'C:/Users/16535/mne_data/MNE-sample-data/MEG/sample/sample_audvis_filt-0-40_raw-eve.fif'
+raw_fname = 'D:/Data/mne/sample_audvis_filt-0-40_raw.fif'
+event_fname = 'D:/Data/mne/sample_audvis_filt-0-40_raw-eve.fif'
 tmin, tmax = -0., 1
 event_id = dict(aud_l=1, aud_r=2, vis_l=3, vis_r=4)
 
@@ -40,12 +36,9 @@ event_id = dict(aud_l=1, aud_r=2, vis_l=3, vis_r=4)
 current_working_dir = os.getcwd()
 filename = current_working_dir + '/best_model.pth'
 # Setup for reading the raw data
-raw = load_deap_data(raw_fname)
+raw = io.Raw(raw_fname, preload=True, verbose=False)
 raw.filter(2, None, method='iir')  # replace baselining with high-pass
-# events = mne.read_events(event_fname)
-
-# 显示第一个通道的数据
-raw.plot(duration=60, n_channels=1)
+events = mne.read_events(event_fname)
 
 raw.info['bads'] = ['MEG 2443']  # set bad channels
 picks = mne.pick_types(raw.info, meg=False, eeg=True, stim=False, eog=False,
@@ -58,6 +51,7 @@ labels = epochs.events[:, -1]
 
 # extract raw data. scale by 1000 due to scaling sensitivity in deep learning
 X = epochs.get_data() * 1000  # format is in (trials, channels, samples)
+print(X.shape)
 y = labels
 
 # Configure the network particulars
@@ -108,7 +102,7 @@ for iter in range(1, 300):
     # create a minibatch
     net.train()
     for batch_index in range(0, X_train.size()[0], batch_size):
-        print(batch_index)
+        # print(batch_index)
         optimizer.zero_grad()
 
         indices = permutation[batch_index:batch_index + batch_size]
@@ -169,12 +163,20 @@ if val_acc > best_acc:
     print('best=%.5f' % best_acc)
 print('epoch=%d, \t loss=%.5f, \t error=%.9f, \t val_acc=%.5f.' % (int(iter + 1), total_loss, total_error, val_acc))
 
+##################################显示t_sne图##############################################
+net.eval()
+inputs = X_test  # X_test.shape = (72, 1, 60, 151) 72个样本，1个通道，60个通道，151个时间点
+probs, cfeatures = net(inputs)
+print(cfeatures.shape)
+preds = probs.argmax(axis=-1).cuda()
+# 调整数据格式
+cfeatures = X_test.reshape(preds.shape[0], )
 
-
-
-
-
-
+print(cfeatures.shape)
+print(preds.shape)
+# t_sne降维
+t_sne.t_sne(cfeatures, preds)
+###########################################################################################
 
 
 X_test = X_test.type(torch.FloatTensor).cuda()
@@ -182,7 +184,7 @@ checkpoint = torch.load(filename)
 net.load_state_dict(checkpoint['model_state_dict'])
 optimizer.load_state_dict((checkpoint['optimizer_state_dict']))
 net.eval()
-probs = net(X_test.cuda())
+probs, cfeatures = net(X_test.cuda())
 preds = probs.argmax(axis=-1).cuda()
 acc = np.mean((preds == Y_test.argmax(axis=-1)).double().cpu().numpy())
 print("Classification accuracy: %f " % (acc))
