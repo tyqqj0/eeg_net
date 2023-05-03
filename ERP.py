@@ -169,6 +169,14 @@ if val_acc > best_acc:
     print('best=%.5f' % best_acc)
 print('epoch=%d, \t loss=%.5f, \t error=%.9f, \t val_acc=%.5f.' % (int(iter + 1), total_loss, total_error, val_acc))
 
+
+
+
+
+
+
+
+
 X_test = X_test.type(torch.FloatTensor).cuda()
 checkpoint = torch.load(filename)
 net.load_state_dict(checkpoint['model_state_dict'])
